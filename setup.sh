@@ -47,9 +47,7 @@ fi
 gh api --silent -X PUT "repos/$INTAKE_REPO/actions/permissions/workflow" \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 gh api --silent -X PUT "repos/$INTAKE_REPO/actions/permissions" \
-  -F enabled=true -f allowed_actions=selected
-gh api --silent -X PUT "repos/$INTAKE_REPO/actions/permissions/selected-actions" \
-  -F github_owned_allowed=false -F verified_allowed=false
+  -F enabled=true -f allowed_actions=local_only
 gh repo edit "$INTAKE_REPO" --enable-wiki=false --enable-projects=false --enable-discussions=false
 
 echo "Done. The owner still stores the token (never pass it as an argument):"
