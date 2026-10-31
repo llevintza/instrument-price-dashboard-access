@@ -53,4 +53,4 @@ Before the first grant while `TARGET_REPO` is still a personal-account repo, mee
 
 ## Moving to the organization
 
-When `instrument-price-dashboard` moves to `llevintza-labs`, set `TARGET_REPO` to `llevintza-labs/instrument-price-dashboard` (re-run `setup.sh` with that value), and replace the token with one whose resource owner is the org. Nothing else changes, and the same `permission=pull` then grants read only.
+When `instrument-price-dashboard` moves to `llevintza-labs`, set `TARGET_REPO` to `llevintza-labs/instrument-price-dashboard` (re-run `setup.sh` with that value). Then create a **new** fine-grained token whose resource owner is the org (a token's resource owner can't be changed, and the org must allow fine-grained tokens), store it as `REPO_ACCESS_TOKEN` as above, and delete the old token. Nothing else changes. The workflow passes `permission=pull` explicitly because an org repo would otherwise default to push; on the personal repo GitHub ignores it, and in the org it grants read only.
