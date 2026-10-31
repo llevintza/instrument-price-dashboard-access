@@ -58,7 +58,9 @@ jobs:
           fi
 
       # The run can wait hours for the environment approval, so re-read the issue as it is now:
-      # approving a stale run must not grant after the owner changed their mind.
+      # approving a stale run must not grant after the owner changed their mind. Only a stale
+      # request sets stale=true; if `gh issue view` itself fails, the step fails without it, so
+      # the failure report below still explains the failed grant to the requester.
       - name: Check the current request
         id: current
         env:
@@ -66,6 +68,7 @@ jobs:
         run: |
           current="$(gh issue view "$ISSUE" --json state,labels --jq '[.state, ([.labels[].name] | index("status:approved") != null)] | @tsv')"
           if [[ "$current" != $'OPEN\ttrue' ]]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
             echo "::error::Issue #$ISSUE is no longer open with status:approved, so nothing is granted."
             exit 1
           fi
@@ -93,7 +96,8 @@ jobs:
           gh issue close "$ISSUE" --reason completed
 
       - name: Report a failed grant
-        if: failure() && steps.current.outcome != 'failure'
+        # A stale request was closed or relabelled by the owner on purpose, so it gets no comment.
+        if: failure() && steps.current.outputs.stale != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           INVITED: ${{ steps.invite.outcome == 'success' }}

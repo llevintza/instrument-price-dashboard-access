@@ -23,7 +23,7 @@ Nobody types a username: the account that opens the issue is the one that's invi
 | `status:granted` | the `grant` job, which comments and closes the issue | final |
 | `status:declined` | the owner; the `decline` job comments and closes the issue, with no token | final |
 
-The workflow is [`.github/workflows/access-request.yml`](.github/workflows/access-request.yml). Both jobs skip unless the label was added by the approver to an open `access-request` issue. `grant` reads the requester's login from the event, never from the issue text, and calls `PUT /repos/{TARGET_REPO}/collaborators/{author}` with `permission=pull`. A failed grant comments, leaves the issue open with `status:approved`, and can be re-run; re-running for someone who is already a collaborator changes nothing.
+The workflow is [`.github/workflows/access-request.yml`](.github/workflows/access-request.yml). Both jobs skip unless the label was added by the approver to an open `access-request` issue. `grant` reads the requester's login from the event, never from the issue text, and calls `PUT /repos/{TARGET_REPO}/collaborators/{author}` with `permission=pull`. Before inviting, `grant` re-reads the issue: if the owner closed it or removed `status:approved` while the run waited, the request is stale and the job stops with no grant and no comment. Any other failure, including an error while re-reading the issue, comments, leaves the issue open with `status:approved`, and can be re-run; re-running for someone who is already a collaborator changes nothing.
 
 ## Owner setup
 
