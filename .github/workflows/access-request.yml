@@ -46,11 +46,7 @@ jobs:
       AUTHOR_TYPE: ${{ github.event.issue.user.type }}
       TARGET_REPO: ${{ vars.TARGET_REPO }}
     steps:
-      # The run can wait hours for the environment approval, so re-read the issue as it is now:
-      # approving a stale run must not grant after the owner changed their mind.
-      - name: Check the request
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Validate the request
         run: |
           if [[ ! "$TARGET_REPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]]; then
             echo "::error::The TARGET_REPO variable must be set to owner/repo."
@@ -60,6 +56,14 @@ jobs:
             echo "::error::The issue author is not a GitHub user account."
             exit 1
           fi
+
+      # The run can wait hours for the environment approval, so re-read the issue as it is now:
+      # approving a stale run must not grant after the owner changed their mind.
+      - name: Check the current request
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           current="$(gh issue view "$ISSUE" --json state,labels --jq '[.state, ([.labels[].name] | index("status:approved") != null)] | @tsv')"
           if [[ "$current" != $'OPEN\ttrue' ]]; then
             echo "::error::Issue #$ISSUE is no longer open with status:approved, so nothing is granted."
@@ -89,7 +93,7 @@ jobs:
           gh issue close "$ISSUE" --reason completed
 
       - name: Report a failed grant
-        if: failure()
+        if: failure() && steps.current.outcome != 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           INVITED: ${{ steps.invite.outcome == 'success' }}
