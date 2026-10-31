@@ -37,17 +37,16 @@ It creates the five labels, sets the `TARGET_REPO` and `APPROVER_LOGIN` variable
 
 Then, by hand:
 
+0. **First, while `TARGET_REPO` is still a personal-account repo, meet ADR 0023 decision 11's preconditions there.** Move every repository-level deploy secret into the `main`-only `production` environment (#164) and contain the open PR branches. Don't create or store the token until both are done: without it the grant step fails and nothing is granted.
 1. **Create the token.** GitHub → Settings → Developer settings → Fine-grained tokens → Generate. Resource owner: the owner of `TARGET_REPO`. Repository access: only `TARGET_REPO`. Permissions: **Administration: read and write** (Metadata: read comes with it), nothing else. Set an expiry and rotate it.
 2. **Store it** as the environment secret, from a prompt so it stays out of shell history: `gh secret set REPO_ACCESS_TOKEN --env repo-access -R llevintza/instrument-price-dashboard-access`. Never as a repository secret.
 3. **Check the environment** (Settings → Environments → `repo-access`): you are the required reviewer and only `main` can deploy. The script sets both; add yourself by hand if the API refused.
-
-Before the first grant while `TARGET_REPO` is still a personal-account repo, meet ADR 0023 decision 11's preconditions there: no repository-level deploy secrets (they live in the `main`-only `production` environment, #164) and open PR branches contained.
 
 ## Dry run
 
 1. From a test GitHub account, open the form and submit. The issue gets `access-request` and `status:pending`.
 2. As the owner, add `status:approved`. The `grant` run waits for review; approve it under Actions.
-3. Check: the test account gets GitHub's invitation email; the issue has a comment, `status:granted`, and is closed; the run log shows no token.
+3. Check: the test account gets GitHub's invitation email; the issue has a comment, `status:granted`, and is closed; the run log shows no token. The collaborator call must succeed (201) on the personal-account repo too; if GitHub rejects `permission=pull` there (422), drop the parameter until `TARGET_REPO` is an org repo.
 4. Revoke: `gh api -X DELETE repos/$TARGET_REPO/collaborators/<login>` (or cancel a pending invitation in the repo's Settings → Collaborators).
 5. Open a second request and add `status:declined`: it's commented on and closed, and no environment approval is asked for.
 
