@@ -1,0 +1,106 @@
+name: access-request
+
+# Grants or declines a repo access request (ADR 0023 decisions 7–10, amended 2026-10-31; #147).
+#
+# - `status:approved` runs `grant`, which waits in the `repo-access` environment until the owner
+#   approves the run. Only that job can read the REPO_ACCESS_TOKEN environment secret, and only its
+#   one API step gets it. The step adds the issue's author as a collaborator on TARGET_REPO with
+#   permission=pull, then the job comments, labels `status:granted` and closes the issue. GitHub
+#   emails the invitation. On a personal-account TARGET_REPO GitHub ignores `permission` and grants
+#   push; once the repo is in an organization the same call grants read (ADR 0023 amendment).
+# - `status:declined` runs `decline`, which comments and closes the issue with no token.
+#
+# Both jobs run only on an open `access-request` issue labeled by the approver: APPROVER_LOGIN if
+# that variable is set, otherwise the repo owner. Every other label event skips both jobs, so it
+# never asks for an environment approval. Event data reaches the scripts through env, never through
+# `${{ }}` inside `run:`, so an issue body or title can't inject a command. No third-party actions.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: access-request-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  GH_REPO: ${{ github.repository }}
+  ISSUE: ${{ github.event.issue.number }}
+  AUTHOR: ${{ github.event.issue.user.login }}
+
+jobs:
+  grant:
+    if: >-
+      github.event.label.name == 'status:approved'
+      && github.event.issue.state == 'open'
+      && contains(github.event.issue.labels.*.name, 'access-request')
+      && github.event.sender.login == (vars.APPROVER_LOGIN || github.repository_owner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: repo-access
+    permissions:
+      issues: write
+    env:
+      AUTHOR_TYPE: ${{ github.event.issue.user.type }}
+      TARGET_REPO: ${{ vars.TARGET_REPO }}
+    steps:
+      - name: Check the request
+        run: |
+          if [[ ! "$TARGET_REPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::The TARGET_REPO variable must be set to owner/repo."
+            exit 1
+          fi
+          if [[ "$AUTHOR_TYPE" != "User" || ! "$AUTHOR" =~ ^[A-Za-z0-9-]+$ ]]; then
+            echo "::error::The issue author is not a GitHub user account."
+            exit 1
+          fi
+
+      # The only step that sees the token. gh never prints it, and Actions masks secrets anyway.
+      - name: Add the requester as a collaborator
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::REPO_ACCESS_TOKEN is not set in the repo-access environment."
+            exit 1
+          fi
+          # 201 sends an invitation; 204 means the account is already a collaborator, which changes nothing.
+          gh api --silent -X PUT "repos/$TARGET_REPO/collaborators/$AUTHOR" -f permission=pull
+          echo "Invited $AUTHOR to $TARGET_REPO."
+
+      - name: Comment, label and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "$ISSUE" --body "Approved. GitHub has emailed @$AUTHOR an invitation to \`$TARGET_REPO\`. Accept it from the email or at https://github.com/$TARGET_REPO/invitations while signed in as @$AUTHOR. If you were already a collaborator, nothing changed."
+          gh issue edit "$ISSUE" --add-label "status:granted" --remove-label "status:pending,status:approved"
+          gh issue close "$ISSUE" --reason completed
+
+      - name: Report a failed grant
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE" --body "The grant failed, so no invitation was sent. The request stays open with \`status:approved\`; the owner re-runs the job once it's fixed: $RUN_URL"
+
+  decline:
+    if: >-
+      github.event.label.name == 'status:declined'
+      && github.event.issue.state == 'open'
+      && contains(github.event.issue.labels.*.name, 'access-request')
+      && github.event.sender.login == (vars.APPROVER_LOGIN || github.repository_owner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Comment and close
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "$ISSUE" --body "Declined by the owner, so no access was granted. Thanks for asking, @$AUTHOR."
+          gh issue edit "$ISSUE" --remove-label "status:pending,status:approved"
+          gh issue close "$ISSUE" --reason "not planned"

@@ -1,0 +1,31 @@
+# The request form (ADR 0023 decisions 5–7, intake A). The requester is the issue's author, so the
+# form has no username field; the grant workflow reads the login from the event, never from the body.
+name: Request repo access
+description: Ask for access to the private instrument-price-dashboard repo. The GitHub account that opens this issue is the one that gets access.
+title: Access request
+labels: ["access-request", "status:pending"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The account that opens this issue is the one the owner invites, so check that you are signed in to GitHub as that account.
+
+        **This repo is public.** Your GitHub login, avatar, the note below and the outcome are visible to anyone. Don't put an email address or other personal data in the note. If you'd rather leave no public trace, ask the owner directly instead.
+
+        The owner approves every request by hand. If it's approved, GitHub emails you an invitation to accept.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you submit
+      options:
+        - label: I'm signed in to GitHub as the account that should get access.
+          required: true
+        - label: I understand that this request, my GitHub login and my note are public.
+          required: true
+  - type: textarea
+    id: note
+    attributes:
+      label: Note (optional)
+      description: Why you'd like access, for example "reviewing the take-home". No email address or other personal data.
+    validations:
+      required: false
