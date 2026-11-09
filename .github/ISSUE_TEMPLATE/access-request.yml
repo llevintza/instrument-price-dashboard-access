@@ -4,6 +4,9 @@ name: Request repo access
 description: Ask for access to the private instrument-price-dashboard repo. The GitHub account that opens this issue is the one that gets access.
 title: Access request
 labels: ["access-request", "status:pending"]
+# Assigning the owner makes GitHub notify them of every new request, without relying on Watch
+# settings (#204).
+assignees: ["llevintza"]
 body:
   - type: markdown
     attributes:
